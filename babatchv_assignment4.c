@@ -333,8 +333,8 @@ int execute_command(
     if ((command == NULL) ||
         (command->argc == 0) ||
         (strcmp(command->argv[0], "\0") == 0) ||
-        (strcmp(command->argv[0], "#") == 0))
-    {
+        (command->argv[0][0] == '#')
+    ) {
         return 0; // Continue running the shell
     }
 
