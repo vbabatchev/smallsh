@@ -425,35 +425,33 @@ void check_bg_processes(
     // Iterate through the linked list of background processes
     while (current != NULL) {
         // Check if the process is still active
-        if (current->is_active) {
-            int child_status;
-            pid_t result = waitpid(current->pid, &child_status, WNOHANG);
-            if (result == -1) {
-                perror("waitpid() failed");
-                break;
-            } else if (result == 1) {
-                // Process completed successfully
-                current->is_active = false; // Mark the process as inactive
-                update_status(
-                    child_status,
-                    exit_status,
-                    was_terminated,
-                    signal_number
-                );
-                printf("background pid %d is done: ", current->pid);
-                print_status(*exit_status, *was_terminated, *signal_number);
+        int child_status;
+        pid_t result = waitpid(current->pid, &child_status, WNOHANG);
+        if (result == -1) {
+            perror("waitpid() failed");
+        } else if (result > 0) {
+            // Process completed successfully
+            current->is_active = false; // Mark the process as inactive
+            update_status(
+                child_status,
+                exit_status,
+                was_terminated,
+                signal_number
+            );
+            printf("background pid %d is done: ", current->pid);
+            print_status(*exit_status, *was_terminated, *signal_number);
 
-                // Remove the node from the linked list
-                if (prev == NULL) {
-                    *head = current->next; // Update head of the list
-                    free(current);
-                    current = *head; // Move to the next node
-                } else {
-                    prev->next = current->next; // Bypass the current node
-                    free(current);
-                    current = prev->next; // Move to the next node
-                }
+            // Remove the node from the linked list
+            if (prev == NULL) {
+                *head = current->next; // Update head of the list
+                free(current);
+                current = *head; // Move to the next node
+            } else {
+                prev->next = current->next; // Bypass the current node
+                free(current);
+                current = prev->next; // Move to the next node
             }
+            continue; // Continue to check the next process
         }
         prev = current;
         current = current->next;
