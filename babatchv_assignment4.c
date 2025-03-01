@@ -169,6 +169,18 @@ struct command_line *parse_input()
 	fflush(stdout);
 }
 
+/**
+ * Redirects input and output for the command.
+ *
+ * @param struct command_line *command: A pointer to the command_line
+ *      structure containing the command to be executed.
+ * @param int *exit_status: A pointer to an integer to store the exit
+ *      status of the executed command.
+ * @param bool is_bg: A flag indicating if the command is a background
+ *      process.
+ *
+ * @return: 0 on success, -1 on failure.
+ */
 int redirect(struct command_line *command, int *exit_status, bool is_bg) {
     // Redirect input
     if (command->input_file != NULL) {
