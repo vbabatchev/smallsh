@@ -11,12 +11,15 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #define INPUT_LENGTH 2048
 #define MAX_ARGS 512
 #define EXIT_CMD "exit"
 #define CD_CMD "cd"
+#define STATUS_CMD "status"
 
 struct command_line
 {
@@ -117,6 +120,9 @@ struct command_line *parse_input()
  * @return 0 to continue running, 1 to exit normally
  */
 int execute_command(struct command_line *command) {
+    int child_status;
+    pid_t child_pid = -5;
+
     // Handle NULL command or empty command
     if (command == NULL || command->argc == 0) {
         return 0; // Continue running the shell
@@ -131,9 +137,33 @@ int execute_command(struct command_line *command) {
     // Check for 'cd' command
     if (strcmp(command->argv[0], CD_CMD) == 0) {
         change_directory(command->argc, command->argv);
+        return 0; // Continue running the shell
     }
 
-    // TODO: Implement other commands
+    // Check for 'status' command
+    if (strcmp(command->argv[0], STATUS_CMD) == 0) {
+        // TODO: Implement status command
+    }
+
+    // Other commands
+    child_pid = fork();
+    switch (child_pid) {
+		case -1:
+			perror("fork() failed");
+			break;
+		case 0:
+			// Child process
+			execvp(command->argv[0], command->argv);
+			// If execvp fails, print error message and set exit status
+			perror("execvp() failed");
+			exit(EXIT_FAILURE);
+			break;
+		default:
+		    // Parent process
+			// Wait for child process to finish
+		    child_pid = waitpid(child_pid, &child_status, 0);
+			break;
+	}
     return 0; // Continue running the shell
 }
 
