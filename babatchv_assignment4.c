@@ -11,10 +11,12 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define INPUT_LENGTH 2048
 #define MAX_ARGS 512
 #define EXIT_CMD "exit"
+#define CD_CMD "cd"
 
 struct command_line
 {
@@ -75,6 +77,38 @@ struct command_line *parse_input()
 }
 
 /**
+ * Changes the current working directory to the specified path.
+ *
+ * @param int argc: The number of arguments passed to the command.
+ * @param char **argv: The array of arguments passed to the command.
+ *
+ * @return: 0 on success, -1 on failure.
+ */
+ int change_directory(int argc, char **argv) {
+    char *target_dir;
+
+    // If no arguments are provided, change to the home directory
+    if (argc ==  1) {
+        // Get HOME environment variable
+        target_dir = getenv("HOME");
+        if (target_dir == NULL) {
+            perror("HOME not set");
+            return -1;
+        }
+    } else {
+        // Use the provided directory
+        target_dir = argv[1];
+    }
+
+    // Change directory
+    if (chdir(target_dir) != 0) {
+        perror("Change directory failed");
+        return -1;
+    }
+    return 0;
+}
+
+/**
  * Executes a parsed command.
  *
  * @param struct command_line *command: A pointer to the parsed command
@@ -89,9 +123,14 @@ int execute_command(struct command_line *command) {
     }
 
     // Check for 'exit' command
-    if (command->argc > 0 && strcmp(command->argv[0], EXIT_CMD) == 0) {
+    if (strcmp(command->argv[0], EXIT_CMD) == 0) {
         // TODO: Clean up all background processes
         return 1; // Exit the shell
+    }
+
+    // Check for 'cd' command
+    if (strcmp(command->argv[0], CD_CMD) == 0) {
+        change_directory(command->argc, command->argv);
     }
 
     // TODO: Implement other commands
