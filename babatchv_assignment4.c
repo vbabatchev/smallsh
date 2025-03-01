@@ -17,6 +17,7 @@
 
 #define INPUT_LENGTH 2048
 #define MAX_ARGS 512
+#define COMMENT_FLAG '#'
 #define EXIT_CMD "exit"
 #define CD_CMD "cd"
 #define STATUS_CMD "status"
@@ -123,8 +124,12 @@ int execute_command(struct command_line *command) {
     int child_status;
     pid_t child_pid = -5;
 
-    // Handle NULL command or empty command
-    if (command == NULL || command->argc == 0) {
+    // Handle NULL command, empty command, blank line, or comment
+    if ((command == NULL) ||
+        (command->argc == 0) ||
+        (strcmp(command->argv[0], "\0") == 0) ||
+        (strcmp(command->argv[0], "#") == 0))
+    {
         return 0; // Continue running the shell
     }
 
@@ -175,9 +180,8 @@ int main()
 	while(shell_status == 0) { // Continue running while shell_status is 0
 		curr_command = parse_input();
 
-		// Handle parsing error
+		// Handle parsing error or empty command
 		if (curr_command == NULL) {
-		    perror("Failed to parse input");
             continue;
         }
 
