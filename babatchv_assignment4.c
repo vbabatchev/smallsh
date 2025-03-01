@@ -113,14 +113,71 @@ struct command_line *parse_input()
 }
 
 /**
+ * Updates the exit status based on the child process's termination
+ * status.
+ *
+ * @param int child_status: The termination status of the child process.
+ * @param int *exit_status: A pointer to an integer to store the exit
+ *      status of the executed command.
+ * @param bool *terminated: A pointer to a boolean flag to indicate
+ *     if the command was terminated by a signal.
+ * @param int *signal_number: A pointer to an integer to store the
+ *      signal number that terminated the command.
+ */
+ void update_status(
+    int child_status,
+    int *exit_status,
+    bool *terminated,
+    int *signal_number
+ ) {
+    if (WIFEXITED(child_status)) {
+        *exit_status = WEXITSTATUS(child_status);
+    } else if (WIFSIGNALED(child_status)) {
+        *signal_number = WTERMSIG(child_status);
+        *terminated = true;
+    }
+}
+/**
+ * Prints the exit status or terminating signal of the last executed
+ * foreground command.
+ *
+ * @param int exit_status: The exit status of the last executed
+ *      foreground command.
+ * @param bool terminated: A flag indicating if the last foreground
+ *      command was terminated by a signal.
+ * @param int signal_number: The signal number that terminated the last
+ *      foreground command.
+ */
+ void print_status(int exit_status, bool terminated, int signal_number) {
+    if (terminated) {
+        printf("terminated by signal %d\n", signal_number);
+    } else {
+        printf("exit value %d\n", exit_status);
+    }
+
+	fflush(stdout);
+}
+
+/**
  * Executes a parsed command.
  *
  * @param struct command_line *command: A pointer to the parsed command
  *      line structure or NULL.
+ * @param int *exit_status: A pointer to an integer to store the
+ *      exit status of the last foreground process.
+ * @param bool *was_terminated: A pointer to a boolean flag to indicate
+ *     if the last foreground process was terminated by a signal.
+ * @param int *signal_number: A pointer to an integer to store the
+ *     signal number that terminated the command.
  *
  * @return 0 to continue running, 1 to exit normally
  */
-int execute_command(struct command_line *command) {
+int execute_command(
+    struct command_line *command,
+    int *exit_status,
+    bool *was_terminated,
+    int *signal_number
+) {
     int child_status;
     pid_t child_pid = -5;
 
@@ -147,7 +204,8 @@ int execute_command(struct command_line *command) {
 
     // Check for 'status' command
     if (strcmp(command->argv[0], STATUS_CMD) == 0) {
-        // TODO: Implement status command
+        print_status(*exit_status, *was_terminated, *signal_number);
+        return 0; // Continue running the shell
     }
 
     // Other commands
@@ -167,6 +225,10 @@ int execute_command(struct command_line *command) {
 		    // Parent process
 			// Wait for child process to finish
 		    child_pid = waitpid(child_pid, &child_status, 0);
+			update_status(child_status,
+				          exit_status,
+						  was_terminated,
+						  signal_number);
 			break;
 	}
     return 0; // Continue running the shell
@@ -176,6 +238,9 @@ int main()
 {
 	struct command_line *curr_command;
 	int shell_status = 0; // Shell status code
+	int exit_status = 0; // Last foreground exit status
+	int signal_number = 0; // Signal number for terminated processes
+	bool was_terminated = false; // Flag for terminated processes
 
 	while(shell_status == 0) { // Continue running while shell_status is 0
 		curr_command = parse_input();
@@ -186,7 +251,10 @@ int main()
         }
 
 		// Execute the command and get the shell status
-		shell_status = execute_command(curr_command);
+		shell_status = execute_command(curr_command,
+		                               &exit_status,
+									   &was_terminated,
+									   &signal_number);
 
 		// Free allocated memory
 		for (int i = 0; i < curr_command->argc; i++) {
