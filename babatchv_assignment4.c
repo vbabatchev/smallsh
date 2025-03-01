@@ -14,7 +14,7 @@
 
 #define INPUT_LENGTH 2048
 #define MAX_ARGS 512
-
+#define EXIT_CMD "exit"
 
 struct command_line
 {
@@ -37,8 +37,8 @@ struct command_line
  * The function allocates memory for the command_line structure and its
  * members. The caller is responsible for freeing this memory.
  *
- * @return A pointer to the command_line structure containing the parsed
- *      input.
+ * @return: A pointer to the command_line structure containing the
+ *      parsed input.
  */
 struct command_line *parse_input()
 {
@@ -46,6 +46,11 @@ struct command_line *parse_input()
 	struct command_line *curr_command = (struct command_line *)calloc(
 	   1, sizeof(struct command_line)
 	);
+
+	if (curr_command == NULL) {
+		perror("Memory allocation for current command failed");
+		return NULL;
+	}
 
 	// Get input
 	printf(": ");
@@ -69,19 +74,57 @@ struct command_line *parse_input()
 	return curr_command;
 }
 
+/**
+ * Executes a parsed command.
+ *
+ * @param struct command_line *command: A pointer to the parsed command
+ *      line structure or NULL.
+ *
+ * @return 0 to continue running, 1 to exit normally
+ */
+int execute_command(struct command_line *command) {
+    // Handle NULL command or empty command
+    if (command == NULL || command->argc == 0) {
+        return 0; // Continue running the shell
+    }
+
+    // Check for 'exit' command
+    if (command->argc > 0 && strcmp(command->argv[0], EXIT_CMD) == 0) {
+        // TODO: Clean up all background processes
+        return 1; // Exit the shell
+    }
+
+    // TODO: Implement other commands
+    return 0; // Continue running the shell
+}
+
 int main()
 {
 	struct command_line *curr_command;
+	int shell_status = 0; // Shell status code
 
-	while(true)
-	{
+	while(shell_status == 0) { // Continue running while shell_status is 0
 		curr_command = parse_input();
+
+		// Handle parsing error
+		if (curr_command == NULL) {
+		    perror("Failed to parse input");
+            continue;
+        }
+
+		// Execute the command and get the shell status
+		shell_status = execute_command(curr_command);
+
 		// Free allocated memory
 		for (int i = 0; i < curr_command->argc; i++) {
             free(curr_command->argv[i]);
         }
-		free(curr_command->input_file);
-		free(curr_command->output_file);
+		if (curr_command ->input_file != NULL) {
+            free(curr_command->input_file);
+        }
+		if (curr_command ->output_file != NULL) {
+            free(curr_command->output_file);
+        }
 		free(curr_command);
 	}
 	return EXIT_SUCCESS;
