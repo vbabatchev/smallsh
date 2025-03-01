@@ -7,6 +7,7 @@
  * background.
  */
 
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -158,6 +159,57 @@ struct command_line *parse_input()
 	fflush(stdout);
 }
 
+int redirect(struct command_line *command, int *exit_status) {
+    // Redirect input
+    if (command->input_file != NULL) {
+        // Open the input file for reading
+        int input_fd = open(command->input_file, O_RDONLY);
+        if (input_fd == -1) {
+            fprintf(stderr, "cannot open %s for input\n", command->input_file);
+            fflush(stderr);
+            *exit_status = EXIT_FAILURE;
+            return -1;
+        }
+
+        // Redirect standard input to the input file
+        if (dup2(input_fd, 0) == -1) {
+            perror("source dup2()");
+            close(input_fd);
+            *exit_status = EXIT_FAILURE;
+            return -1;
+        };
+
+        // Close the input file descriptor
+        close(input_fd);
+    }
+
+    // Redirect output
+    if (command->output_file != NULL) {
+        // Open the output file for writing
+        int output_fd = open(command->output_file,
+                             O_WRONLY | O_CREAT | O_TRUNC,
+                             0644);
+        if (output_fd == -1) {
+            fprintf(stderr, "cannot open %s for output\n", command->output_file);
+            fflush(stderr);
+            *exit_status = EXIT_FAILURE;
+            return -1;
+        }
+
+        // Redirect standard output to the output file
+        if (dup2(output_fd, 1) == -1) {
+            perror("target dup2()");
+            close(output_fd);
+            *exit_status = EXIT_FAILURE;
+            return -1;
+        };
+
+        // Close the output file descriptor
+        close(output_fd);
+    }
+    return 0;
+}
+
 /**
  * Executes a parsed command.
  *
@@ -216,10 +268,15 @@ int execute_command(
 			break;
 		case 0:
 			// Child process
-			execvp(command->argv[0], command->argv);
-			// If execvp fails, print error message and set exit status
-			perror("execvp() failed");
-			exit(EXIT_FAILURE);
+			// Redirect input and output if specified
+			if (redirect(command, exit_status) != 0) {
+			    exit(EXIT_FAILURE);
+            }
+			// Execute the command
+ 			execvp(command->argv[0], command->argv);
+ 			// If execvp fails, print error message and set exit status
+ 			perror("execvp() failed");
+ 			exit(EXIT_FAILURE);
 			break;
 		default:
 		    // Parent process
@@ -238,7 +295,7 @@ int main()
 {
 	struct command_line *curr_command;
 	int shell_status = 0; // Shell status code
-	int exit_status = 0; // Last foreground exit status
+	int exit_status = EXIT_SUCCESS; // Last foreground exit status
 	int signal_number = 0; // Signal number for terminated processes
 	bool was_terminated = false; // Flag for terminated processes
 
