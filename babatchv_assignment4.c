@@ -304,6 +304,28 @@ int add_bg_process(struct bg_process_node **head, pid_t pid) {
 }
 
 /**
+ * Set up the signal handler for SIGINT.
+ *
+ * @param bool is_shell: A flag indicating if the shell is running in
+ *      the foreground.
+ * @param bool is_foreground: A flag indicating if the command is a
+ *      foreground process.
+ */
+void setup_signal_handler(bool is_shell, bool is_foreground) {
+    // Set up signal handler for SIGINT
+    struct sigaction SIGINT_action = {0};
+
+    if (is_shell || !is_foreground) {
+        SIGINT_action.sa_handler = SIG_IGN; // Ignore SIGINT
+    } else {
+        SIGINT_action.sa_handler = SIG_DFL; // Default action for SIGINT
+    }
+
+    // Install the signal handler
+    sigaction(SIGINT, &SIGINT_action, NULL);
+}
+
+/**
  * Executes a parsed command.
  *
  * @param struct command_line *command: A pointer to the parsed command
@@ -363,6 +385,10 @@ int execute_command(
 			break;
 		case 0:
 			// Child process
+
+			// Set up signal handler for child process
+			setup_signal_handler(false, !command->is_bg);
+
 			// Redirect input and output if specified
 			if (redirect(command, exit_status, command->is_bg) != 0) {
 			    exit(EXIT_FAILURE);
@@ -384,6 +410,12 @@ int execute_command(
                     was_terminated,
     				signal_number
                 );
+
+                // Check if the child process was terminated by a signal
+                if (*was_terminated) {
+                    printf("terminated by signal %d\n", *signal_number);
+                    fflush(stdout);
+                }
             } else {
                 // Background process
                 printf("background pid is %d\n", child_pid);
@@ -495,6 +527,11 @@ void cleanup_bg_processes(struct bg_process_node **head) {
     *head = NULL; // Set the head of the list to NULL
 }
 
+/**
+ * Main function for the shell program.
+ *
+ * @return: EXIT_SUCCESS on success, EXIT_FAILURE on failure.
+ */
 int main() {
 	struct command_line *curr_command;
 	int shell_status = 0; // Shell status code
@@ -504,6 +541,9 @@ int main() {
 
 	// Initialize background process list
 	struct bg_process_node *bg_processes_list = NULL;
+
+	// Set up signal handler for the shell
+	setup_signal_handler(true, false);
 
 	while(shell_status == 0) { // Continue running while shell_status is 0
 	    // Check for completed background processes before each prompt
