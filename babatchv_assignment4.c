@@ -24,6 +24,8 @@
 #define CD_CMD "cd"
 #define STATUS_CMD "status"
 
+bool foreground_only = false; // Flag for foreground-only mode
+
 struct command_line
 {
 	char *argv[MAX_ARGS + 1];
@@ -55,7 +57,7 @@ struct bg_process_node {
  * members. The caller is responsible for freeing this memory.
  *
  * @return: A pointer to the command_line structure containing the
- *      parsed input.
+ *     parsed input.
  */
 struct command_line *parse_input()
 {
@@ -129,11 +131,11 @@ struct command_line *parse_input()
  *
  * @param int child_status: The termination status of the child process.
  * @param int *exit_status: A pointer to an integer to store the exit
- *      status of the executed command.
+ *     status of the executed command.
  * @param bool *terminated: A pointer to a boolean flag to indicate
  *     if the command was terminated by a signal.
  * @param int *signal_number: A pointer to an integer to store the
- *      signal number that terminated the command.
+ *     signal number that terminated the command.
  */
  void update_status(
     int child_status,
@@ -153,11 +155,11 @@ struct command_line *parse_input()
  * foreground command.
  *
  * @param int exit_status: The exit status of the last executed
- *      foreground command.
+ *     foreground command.
  * @param bool terminated: A flag indicating if the last foreground
- *      command was terminated by a signal.
+ *     command was terminated by a signal.
  * @param int signal_number: The signal number that terminated the last
- *      foreground command.
+ *     foreground command.
  */
  void print_status(int exit_status, bool terminated, int signal_number) {
     if (terminated) {
@@ -173,11 +175,11 @@ struct command_line *parse_input()
  * Redirects input and output for the command.
  *
  * @param struct command_line *command: A pointer to the command_line
- *      structure containing the command to be executed.
+ *     structure containing the command to be executed.
  * @param int *exit_status: A pointer to an integer to store the exit
- *      status of the executed command.
+ *     status of the executed command.
  * @param bool is_bg: A flag indicating if the command is a background
- *      process.
+ *     process.
  *
  * @return: 0 on success, -1 on failure.
  */
@@ -278,7 +280,7 @@ int redirect(struct command_line *command, int *exit_status, bool is_bg) {
  * Add a background process to the linked list.
  *
  * @param struct bg_process_node **head: A pointer to a pointer to the
- *      head of the background process list.
+ *     head of the background process list.
  * @param pid_t pid: The process ID of the background process.
  *
  * @return: 0 on success, -1 on failure.
@@ -304,18 +306,40 @@ int add_bg_process(struct bg_process_node **head, pid_t pid) {
 }
 
 /**
- * Set up the signal handler for SIGINT.
+ * Signal handler for SIGTSTP (Ctrl-Z).
+ *
+ * @param int signo: The signal number.
+ */
+void handle_SIGTSTP(int signo) {
+    char* enter_message = "\nEntering foreground-only mode (& is now ignored)\n: ";
+    char* exit_message = "\nExiting foreground-only mode\n: ";
+
+    // Toggle the foreground-only mode
+    foreground_only = !foreground_only;
+
+    // Write the message to stdout
+    if (foreground_only) {
+        write(STDOUT_FILENO, enter_message, strlen(enter_message));
+    } else {
+        write(STDOUT_FILENO, exit_message, strlen(exit_message));
+    }
+}
+
+/**
+ * Set up the signal handler for signals (SIGINT and SIGTSTP).
  *
  * @param bool is_shell: A flag indicating if the shell is running in
- *      the foreground.
- * @param bool is_foreground: A flag indicating if the command is a
- *      foreground process.
+ *    the foreground.
+ * @param bool is_background: A flag indicating if the command is a
+ *    background process.
+ * @param bool *foreground_only: A pointer to a boolean flag to
+ *    indicate if the shell is in foreground-only mode.
  */
-void setup_signal_handler(bool is_shell, bool is_foreground) {
+void setup_signal_handlers(bool is_shell, bool is_background) {
     // Set up signal handler for SIGINT
     struct sigaction SIGINT_action = {0};
 
-    if (is_shell || !is_foreground) {
+    if (is_shell || is_background) {
         SIGINT_action.sa_handler = SIG_IGN; // Ignore SIGINT
     } else {
         SIGINT_action.sa_handler = SIG_DFL; // Default action for SIGINT
@@ -323,15 +347,33 @@ void setup_signal_handler(bool is_shell, bool is_foreground) {
 
     // Install the signal handler
     sigaction(SIGINT, &SIGINT_action, NULL);
+
+    // Set up signal handler for SIGTSTP
+    struct sigaction SIGTSTP_action = {0};
+
+    if (is_shell) {
+        // Shell process handles SIGTSTP
+        SIGTSTP_action.sa_handler = handle_SIGTSTP;
+        // Block all signals during execution of the handler
+        sigfillset(&SIGTSTP_action.sa_mask);
+        // Automatically restart system calls if interrupted
+        SIGTSTP_action.sa_flags = SA_RESTART;
+    } else {
+        // All child processes ignore SIGTSTP
+        SIGTSTP_action.sa_handler = SIG_IGN;
+    }
+
+    // Install the SIGTSTP handler
+    sigaction(SIGTSTP, &SIGTSTP_action, NULL);
 }
 
 /**
  * Executes a parsed command.
  *
  * @param struct command_line *command: A pointer to the parsed command
- *      line structure or NULL.
+ *     line structure or NULL.
  * @param int *exit_status: A pointer to an integer to store the
- *      exit status of the last foreground process.
+ *     exit status of the last foreground process.
  * @param bool *was_terminated: A pointer to a boolean flag to indicate
  *     if the last foreground process was terminated by a signal.
  * @param int *signal_number: A pointer to an integer to store the
@@ -377,6 +419,11 @@ int execute_command(
         return 0; // Continue running the shell
     }
 
+    // If foreground-only mode is enabled, ignore background processes
+    if (foreground_only) {
+        command->is_bg = false;
+    }
+
     // Other commands
     child_pid = fork();
     switch (child_pid) {
@@ -387,7 +434,7 @@ int execute_command(
 			// Child process
 
 			// Set up signal handler for child process
-			setup_signal_handler(false, !command->is_bg);
+			setup_signal_handlers(false, command->is_bg);
 
 			// Redirect input and output if specified
 			if (redirect(command, exit_status, command->is_bg) != 0) {
@@ -433,10 +480,10 @@ int execute_command(
 
 /**
  * Check for completed background processes, print their status, and
- *      free them from memory.
+ *     free them from memory.
  *
  * @param struct bg_process_node **head: A pointer to a pointer to the
- *      head of the background process list.
+ *     head of the background process list.
  */
 void check_bg_processes(struct bg_process_node **head) {
     struct bg_process_node *current = *head;
@@ -484,7 +531,7 @@ void check_bg_processes(struct bg_process_node **head) {
  * Clean up all background processes and free the linked list.
  *
  * @param struct bg_process_node **head: A pointer to a pointer to the
- *      head of the background process list.
+ *     head of the background process list.
  */
 void cleanup_bg_processes(struct bg_process_node **head) {
     struct bg_process_node *current = *head;
@@ -543,7 +590,7 @@ int main() {
 	struct bg_process_node *bg_processes_list = NULL;
 
 	// Set up signal handler for the shell
-	setup_signal_handler(true, false);
+	setup_signal_handlers(true, false);
 
 	while(shell_status == 0) { // Continue running while shell_status is 0
 	    // Check for completed background processes before each prompt
