@@ -28,6 +28,8 @@ A simple shell program written in C. This shell supports input/output redirectio
 ## Background Processes
 - Background processes can be started by appending `&` to the end of a command
 - The shell will print the PID of a background process when it starts
+- The shell will not wait for background processes to finish
+- The shell will print a message when a background process terminates
 
 ## Signal Handling
 - The shell ignores `SIGINT` signals
