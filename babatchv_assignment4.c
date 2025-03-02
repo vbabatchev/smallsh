@@ -340,7 +340,6 @@ int execute_command(
 
     // Check for 'exit' command
     if (strcmp(command->argv[0], EXIT_CMD) == 0) {
-        // TODO: Clean up all background processes
         return 1; // Exit the shell
     }
 
@@ -406,40 +405,31 @@ int execute_command(
  *
  * @param struct bg_process_node **head: A pointer to a pointer to the
  *      head of the background process list.
- * @param int *exit_status: A pointer to an integer to store the exit
- *      status of the last foreground process.
- * @param bool *was_terminated: A pointer to a boolean flag to indicate
- *     if the last foreground process was terminated by a signal.
- * @param int *signal_number: A pointer to an integer to store the
- *     signal number that terminated the command.
  */
-void check_bg_processes(
-    struct bg_process_node **head,
-    int *exit_status,
-    bool *was_terminated,
-    int *signal_number
-) {
+void check_bg_processes(struct bg_process_node **head) {
     struct bg_process_node *current = *head;
     struct bg_process_node *prev = NULL;
 
     // Iterate through the linked list of background processes
     while (current != NULL) {
-        // Check if the process is still active
         int child_status;
+        bool was_terminated = false;
+        int signal_number = 0;
+
+        // Check if the process is still active
         pid_t result = waitpid(current->pid, &child_status, WNOHANG);
         if (result == -1) {
             perror("waitpid() failed");
         } else if (result > 0) {
             // Process completed successfully
             current->is_active = false; // Mark the process as inactive
-            update_status(
-                child_status,
-                exit_status,
-                was_terminated,
-                signal_number
-            );
+            // Check if the process was terminated by a signal
+            if (WIFSIGNALED(child_status)) {
+                was_terminated = true;
+                signal_number = WTERMSIG(child_status);
+            }
             printf("background pid %d is done: ", current->pid);
-            print_status(*exit_status, *was_terminated, *signal_number);
+            print_status(child_status, was_terminated, signal_number);
 
             // Remove the node from the linked list
             if (prev == NULL) {
@@ -517,12 +507,7 @@ int main() {
 
 	while(shell_status == 0) { // Continue running while shell_status is 0
 	    // Check for completed background processes before each prompt
-	    check_bg_processes(
-			&bg_processes_list,
-            &exit_status,
-            &was_terminated,
-            &signal_number
-		);
+	    check_bg_processes(&bg_processes_list);
 
 		// Display prompt and get user input
 		curr_command = parse_input();
