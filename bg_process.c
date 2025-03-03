@@ -48,7 +48,6 @@ void check_bg_processes(struct bg_process_node **head) {
     // Iterate through the linked list of background processes
     while (current != NULL) {
         int child_status;
-        bool was_terminated = false;
         int signal_number = 0;
 
         // Check if the process is still active
@@ -61,7 +60,6 @@ void check_bg_processes(struct bg_process_node **head) {
 
             // Check if the process was terminated by a signal
             if (WIFSIGNALED(child_status)) {
-                was_terminated = true;
                 signal_number = WTERMSIG(child_status);
                 printf("background pid %d is done: terminated by signal %d\n",
                         current->pid, signal_number);
