@@ -7,10 +7,9 @@
 #include <unistd.h>
 #include <string.h>
 #include "signals.h"
-#include "common.h"
 
-/* Global variable definition */
-bool foreground_only = false; // Initially, background commands are allowed
+// Global pointer to access foreground_only from signal handler
+static bool *foreground_only_mode = NULL;
 
 /**
  * Signal handler for SIGTSTP (Ctrl-Z)
@@ -21,11 +20,11 @@ void handle_SIGTSTP(int signo) {
     char* enter_message = "\nEntering foreground-only mode (& is now ignored)\n: ";
     char* exit_message = "\nExiting foreground-only mode\n: ";
 
-    // Toggle the foreground-only mode
-    foreground_only = !foreground_only;
+    // Toggle the foreground-only mode using the pointer
+    *foreground_only_mode = !(*foreground_only_mode);
 
     // Write the message to stdout
-    if (foreground_only) {
+    if (*foreground_only_mode) {
         write(STDOUT_FILENO, enter_message, strlen(enter_message));
     } else {
         write(STDOUT_FILENO, exit_message, strlen(exit_message));
@@ -38,7 +37,12 @@ void handle_SIGTSTP(int signo) {
  * @param is_shell: A flag indicating if the shell is running in the foreground
  * @param is_background: A flag indicating if the command is a background process
  */
-void setup_signal_handlers(bool is_shell, bool is_background) {
+void setup_signal_handlers(bool is_shell, bool is_background, bool *foreground_only) {
+    // Store the pointer to the foreground_only for the signal handler
+    if (is_shell) {
+        foreground_only_mode = foreground_only;
+    }
+
     // Set up signal handler for SIGINT
     struct sigaction SIGINT_action = {0};
 

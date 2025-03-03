@@ -16,7 +16,8 @@ int execute_command(
     int *exit_status,
     bool *was_terminated,
     int *signal_number,
-    struct bg_process_node **bg_processes_list
+    struct bg_process_node **bg_processes_list,
+    bool foreground_only
 );
 
 int change_directory(int argc, char **argv);

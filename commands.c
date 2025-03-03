@@ -111,7 +111,8 @@ int execute_command(
     int *exit_status,
     bool *was_terminated,
     int *signal_number,
-    struct bg_process_node **bg_processes_list
+    struct bg_process_node **bg_processes_list,
+    bool foreground_only
 ) {
     int child_status;
     pid_t child_pid = -5;
@@ -157,7 +158,7 @@ int execute_command(
             // Child process
 
             // Set up signal handler for child process
-            setup_signal_handlers(false, command->is_bg);
+            setup_signal_handlers(false, command->is_bg, NULL);
 
             // Redirect input and output if specified
             if (redirect(command, exit_status, command->is_bg) != 0) {

@@ -31,12 +31,13 @@ int main() {
 	int exit_status = EXIT_SUCCESS; // Last foreground exit status
 	int signal_number = 0; // Signal number for terminated processes
 	bool was_terminated = false; // Flag for terminated processes
+	bool foreground_only = false; // Flag for foreground-only mode
 
 	// Initialize background process list
 	struct bg_process_node *bg_processes_list = NULL;
 
 	// Set up signal handler for the shell
-	setup_signal_handlers(true, false);
+	setup_signal_handlers(true, false, &foreground_only);
 
 	while(shell_status == 0) { // Continue running while shell_status is 0
 	    // Check for completed background processes before each prompt
@@ -56,7 +57,8 @@ int main() {
 		    &exit_status,
 			&was_terminated,
 			&signal_number,
-		    &bg_processes_list
+		    &bg_processes_list,
+			foreground_only
 		);
 
 		// Free allocated memory

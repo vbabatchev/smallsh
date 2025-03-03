@@ -15,7 +15,4 @@
 #define CD_CMD "cd"
 #define STATUS_CMD "status"
 
-/* Global variable declaration */
-extern bool foreground_only; // Flag for foreground-only mode
-
 #endif /* COMMON_H */

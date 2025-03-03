@@ -9,6 +9,10 @@
 
 /* Function declarations */
 void handle_SIGTSTP(int signo);
-void setup_signal_handlers(bool is_shell, bool is_background);
+void setup_signal_handlers(
+    bool is_shell,
+    bool is_background,
+    bool *foreground_only
+);
 
 #endif /* SIGNALS_H */
